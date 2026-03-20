@@ -14,10 +14,14 @@
 #define RIGHT   "\033[1C"
 #define SAVE    "\033[s"
 #define RESTORE "\033[u"
+#define HOME    "\033[H"
 
 // Key codes
 #define BACKSPACE 127
 #define ESC       27
+
+// Erase Functions
+#define ERASE "\033[2J"
 
 struct termios original_settings;
 
@@ -59,6 +63,7 @@ int readFile(char **buf) {
 }
 
 void setup(char *gameText) {
+    printf(ERASE);
     printf(SAVE "%s" RESET RESTORE, gameText);
     printf(RESTORE);
     fflush(stdout);
@@ -70,13 +75,14 @@ void result(int index, int errors, int words){
     if (index == 0 || errors == 0) {
         accuracy = 100.0;
     } else {
-        accuracy = errors / index;
+        accuracy = (double)(index - errors) / index;
+        accuracy *= 100;
     }
 
-    printf("\n\n");
+    printf(ERASE HOME);
     printf("---- Results ----\n");
     printf("WPM: %d\n", words);
-    printf("Accuracy: %f\n", accuracy);
+    printf("Accuracy: %.2f%c\n", accuracy, '%');
     printf("Errors: %d\n", errors);
     printf("\n\n");
 }
@@ -90,7 +96,8 @@ void start(char* gameText, int fileSize) {
    time_t now = time(NULL);
     
    struct tm *end_time = localtime(&now);
-   end_time->tm_min += 1;
+   //end_time->tm_min += 1;
+   end_time->tm_sec += 20; // for quick tests
     
    time_t end = mktime(end_time); 
     
