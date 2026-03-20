@@ -3,6 +3,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <time.h>
+#include <string.h>
 
 // ANSI colour codes
 #define RED   "\033[1;31m"
@@ -23,6 +24,9 @@
 // Erase Functions
 #define ERASE "\033[2J"
 
+#define WORDLIST_SIZE 10000
+#define NUM_WORDS     300
+
 struct termios original_settings;
 
 void disableRawMode() {
@@ -41,29 +45,58 @@ void enableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-int readFile(char **buf) {
-    FILE *input = fopen("example.txt", "r");
-    if (!input) return 0;
-
-    fseek(input, 0, SEEK_END);
-    long size = ftell(input);
-    rewind(input);
+int readFile(char *gameText) {
+    FILE *words = fopen("wordlist.txt", "r");
+    if (!words) return 0;
     
-    *buf = malloc(size + 1);
-    if (*buf == NULL) {
-        fclose(input);
-        return 0;
+    // index the file position for each word
+    long offsets[WORDLIST_SIZE];
+    int word_count = 0;
+
+    offsets[word_count++] = 0;
+
+    int ch;
+    while ((ch = fgetc(words)) != EOF && word_count < WORDLIST_SIZE) {
+        if (ch == '\n') {
+            offsets[word_count++] = ftell(words);
+        }
+    } 
+    
+    // Randomly select 300 words from the file for the game 
+    srand(time(NULL));
+    int selection;
+
+    char *ptr = gameText;
+    char buf[128];
+    for (int i = 0; i < NUM_WORDS; i++) {
+        selection = rand() % WORDLIST_SIZE;
+        fseek(words, offsets[selection], SEEK_SET); 
+    
+        if (fgets(buf, sizeof(buf), words)) {
+            size_t len = strcspn(buf, "\r\n");
+            buf[len] = '\0';
+
+            memcpy(ptr, buf, len);
+            ptr += len;               
+
+            if (i < NUM_WORDS - 1) {
+                *ptr = ' ';
+                ptr++;
+            }
+        }
     }
 
-    fread(*buf, 1, size, input);
-    (*buf)[size] = '\0';
-
-    fclose(input);
-    return size;
+    *ptr = '\0';
+    
+    size_t finalSize = (size_t)(ptr - gameText);
+    
+    fclose(words);   
+    
+    return finalSize;
 }
 
 void setup(char *gameText) {
-    printf(ERASE);
+    printf(ERASE HOME);
     printf(SAVE "%s" RESET RESTORE, gameText);
     printf(RESTORE);
     fflush(stdout);
@@ -87,7 +120,7 @@ void result(int index, int errors, int words){
     printf("\n\n");
 }
 
-void start(char* gameText, int fileSize) {
+void start(char* gameText) {
    long index = 0; // characters
    int errors = 0; 
    int words = 0;
@@ -139,23 +172,35 @@ void start(char* gameText, int fileSize) {
 }
 
 int main(void) {
-    char *gameText = NULL;
-    int fileSize;
-    
-    
-    fileSize= readFile(&gameText);
-    
-    if (!fileSize) {
+    // Allocate space for 300 words
+    char *gameText = malloc(WORDLIST_SIZE);
+    if (!gameText) return 1;
+
+    int textSize = readFile(gameText);    
+
+    if (!textSize) {
         free(gameText);
         printf("File size is 0..\n");
         return 1;
     }
     
+    // Reallocate buffer to correct size
+    char *tmp = realloc(gameText, textSize + 1);
+    if (!tmp) {
+        free(gameText);
+        printf("Unable to reallocate game text buffer\n");
+        return 1;
+    } 
+    
+    gameText = tmp;
+
     enableRawMode();
     
     setup(gameText);
     
-    start(gameText, fileSize); 
+    start(gameText); 
 
     free(gameText);
+
+    return 0;
 }
