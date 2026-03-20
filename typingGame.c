@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <termios.h>
 #include <unistd.h>
+#include <time.h>
 
 // ANSI colour codes
 #define RED   "\033[1;31m"
@@ -63,11 +64,40 @@ void setup(char *gameText) {
     fflush(stdout);
 }
 
+void result(int index, int errors, int words){
+    double accuracy;
+    
+    if (index == 0 || errors == 0) {
+        accuracy = 100.0;
+    } else {
+        accuracy = errors / index;
+    }
+
+    printf("\n\n");
+    printf("---- Results ----\n");
+    printf("WPM: %d\n", words);
+    printf("Accuracy: %f\n", accuracy);
+    printf("Errors: %d\n", errors);
+    printf("\n\n");
+}
+
 void start(char* gameText, int fileSize) {
-   long index = 0;
-   int errors = 0;
-   
-   while(index < fileSize) {
+   long index = 0; // characters
+   int errors = 0; 
+   int words = 0;
+    
+   // Create timer - each game is 1 minute
+   time_t now = time(NULL);
+    
+   struct tm *end_time = localtime(&now);
+   end_time->tm_min += 1;
+    
+   time_t end = mktime(end_time); 
+    
+   // game will hang indefinitely if no user input - maybe try and improve later
+   // would also be nice to display an elapsed time to the player 
+   while(now < end) {
+      now = time(NULL);
       char input = getchar();
 
       if (input == ESC) break;
@@ -86,16 +116,26 @@ void start(char* gameText, int fileSize) {
               errors++;
           }
       }
-
+              
       fflush(stdout);
       index++;
-   } 
+   }
+   
+   // Count words
+   // Probably a more efficient way to do this by tracking 
+   // words during the game loop but this method is simpler for now
+   for (int i = 0; i < index; i++) {       
+        if (gameText[i] == ' ') words++;
+   }
+   
+   result(index, errors, words); 
 }
 
 int main(void) {
     char *gameText = NULL;
     int fileSize;
-
+    
+    
     fileSize= readFile(&gameText);
     
     if (!fileSize) {
